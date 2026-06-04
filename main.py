@@ -57,7 +57,7 @@ def registrar_calificaciones(id_materia, u1, u2, u3):
 
 
 # --- APLICACIÓN PRINCIPAL ---
-async def main(page: ft.Page):
+def main(page: ft.Page):
     page.title = "Sistema de Control Escolar"
     page.window_width = 500
     page.window_height = 650
@@ -91,11 +91,11 @@ async def main(page: ft.Page):
     txt_usuario = ft.TextField(label="Usuario", width=300)
     txt_password = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=300)
 
-    async def login_click(e):
+    def login_click(e):
         if not txt_usuario.value or not txt_password.value:
             txt_usuario.error_text = "Campo obligatorio" if not txt_usuario.value else None
             txt_password.error_text = "Campo obligatorio" if not txt_password.value else None
-            await page.update_async()
+            page.update()
             return
 
         db = conectar_bd()
@@ -111,12 +111,11 @@ async def main(page: ft.Page):
                                         usuario["contrasenia"].encode('utf-8')):
                 usuario_actual["id"] = usuario["id_usuario"]
                 usuario_actual["nombre"] = usuario["nombre_usuario"]
-                await page.push_route("/dashboard")
+                page.push_route("/dashboard")
             else:
                 page.snack_bar = ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED)
                 page.snack_bar.open = True
-                await page.update_async()
-
+                page.update()
 
     vista_login = ft.View(
         route="/",
@@ -133,7 +132,7 @@ async def main(page: ft.Page):
                         txt_usuario,
                         txt_password,
                         ft.Button("Ingresar", on_click=login_click, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
-                        ft.TextButton("¿No tienes cuenta? Regístrate aquí", on_click=lambda _: page.push_route("/registro"))
+                        ft.TextButton("¿No tienes cuenta? Regístrate aquí", on_click=lambda e: page.push_route("/registro"))
                     ]
                 )
             )
@@ -301,21 +300,32 @@ async def main(page: ft.Page):
         def guardar_calificacion(e):
             try:
                 u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
-                # Registrar la materia en BD
-                registrar_materia(txt_materia.value, 1, id_usuario)  # ejemplo: semestre 1
+
                 db = conectar_bd()
                 cursor = db.cursor()
-                cursor.execute("SELECT LAST_INSERT_ID()")
-                id_materia = cursor.fetchone()[0]
+
+                # Registrar materia y obtener ID
+                cursor.execute(
+                    "INSERT INTO materias (nombre_materia, semestre, id_usuario) VALUES (%s, %s, %s)",
+                    (txt_materia.value, 1, id_usuario)
+                )
+                id_materia = cursor.lastrowid
+
+            # Registrar calificaciones
+                promedio = (u1 + u2 + u3) / 3
+                cursor.execute(
+                    "INSERT INTO calificaciones (id_materia, unidad1, unidad2, unidad3, promedio) VALUES (%s, %s, %s, %s, %s)",
+                    (id_materia, u1, u2, u3, promedio)
+                )
+
+                db.commit()
                 cursor.close()
                 db.close()
-
-                # Registrar calificaciones ligadas a la materia
-                registrar_calificaciones(id_materia, u1, u2, u3)
 
                 page.snack_bar = ft.SnackBar(ft.Text("Calificación guardada correctamente"), bgcolor=ft.Colors.GREEN)
                 page.snack_bar.open = True
                 page.update()
+
             except Exception as err:
                 page.snack_bar = ft.SnackBar(ft.Text(f"Error: {err}"), bgcolor=ft.Colors.RED)
                 page.snack_bar.open = True
@@ -337,12 +347,13 @@ async def main(page: ft.Page):
                         lbl_promedio,
                         ft.Row([
                             ft.Button("Calcular Promedio", on_click=calcular_promedio, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
-                            ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
+                        ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
                         ])
                     ]
                 )
             ]
         )
+
 
     # Vista Historial Académico Completo
     def vista_historial(id_usuario):
