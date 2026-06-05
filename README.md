@@ -20,7 +20,7 @@ La interfaz gráfica es sencilla e intuitiva, con navegación mediante una barra
 ## ▶️ Pasos para ejecutar el proyecto
 
 1. **Clonar el repositorio** 
-   git clone https://github.com/tuusuario/control-escolar.git
+   git clone https://github.com/Karla-Michelle-Andres-Cruz/control.git
    cd control-escolar
 
 2. **Crear entorno virtual e instalar dependencias**
