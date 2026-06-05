@@ -7,8 +7,8 @@ def conectar_bd():
     try:
         return mysql.connector.connect(
             host="localhost",
-            user="root",       # Ajusta según tu configuración
-            password="",       # Ajusta según tu configuración
+            user="root",
+            password="",
             database="control_escolar"
         )
     except mysql.connector.Error as err:
