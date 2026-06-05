@@ -15,7 +15,6 @@ def conectar_bd():
         print(f"Error de conexión: {err}")
         return None
 
-
 # --- FUNCIONES DE BD ---
 def registrar_usuario(nombre_usuario, contrasenia, nombre_completo, curp, matricula, correo, celular, id_especialidad):
     db = conectar_bd()
@@ -56,6 +55,8 @@ def registrar_calificaciones(id_materia, u1, u2, u3):
         db.close()
 
 
+
+
 # --- APLICACIÓN PRINCIPAL ---
 def main(page: ft.Page):
     page.title = "Sistema de Control Escolar"
@@ -64,29 +65,26 @@ def main(page: ft.Page):
 
     usuario_actual = {"id": None, "nombre": ""}
 
-        # --- Drawer (Menú lateral) ---
-    nav_drawer = ft.NavigationDrawer(
-        controls=[
-            ft.NavigationDrawerDestination(icon=ft.Icons.HOME, label="Inicio"),
-            ft.NavigationDrawerDestination(icon=ft.Icons.DASHBOARD, label="Dashboard"),
-            ft.NavigationDrawerDestination(icon=ft.Icons.SCHOOL, label="Calificaciones"),
-            ft.NavigationDrawerDestination(icon=ft.Icons.PERSON, label="Perfil"),
-            ft.NavigationDrawerDestination(icon=ft.Icons.HISTORY, label="Historial Académico"),
-            ft.NavigationDrawerDestination(icon=ft.Icons.LOGOUT, label="Cerrar Sesión"),
+    def mostrar_snackbar(mensaje, color=ft.Colors.BLUE):
+        page.snack_bar = ft.SnackBar(ft.Text(mensaje), bgcolor=color)
+        page.snack_bar.open = True
+        page.update()
+
+    # --- Barra de navegación inferior ---
+    nav_bar = ft.NavigationBar(
+        destinations=[
+            ft.NavigationBarDestination(icon=ft.Icons.SCHOOL, label="Calificaciones"),
+            ft.NavigationBarDestination(icon=ft.Icons.PERSON, label="Perfil"),
+            ft.NavigationBarDestination(icon=ft.Icons.HISTORY, label="Historial"),
         ],
-        on_change=lambda e: (
-            page.push_route("/" if e.control.selected_index == 0 else
-                            "/dashboard" if e.control.selected_index == 1 else
-                            "/calificaciones" if e.control.selected_index == 2 else
-                            "/perfil" if e.control.selected_index == 3 else
-                            "/historial" if e.control.selected_index == 4 else
-                            "/")
+        on_change=lambda e: page.go(
+            "/calificaciones" if e.control.selected_index == 0 else
+            "/perfil" if e.control.selected_index == 1 else
+            "/historial"
         )
     )
 
-    page.navigation_drawer = nav_drawer
-
-    # --- VISTAS ---
+    # --- Vistas ---
     # Login
     txt_usuario = ft.TextField(label="Usuario", width=300)
     txt_password = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=300)
@@ -109,13 +107,20 @@ def main(page: ft.Page):
 
             if usuario and bcrypt.checkpw(txt_password.value.encode('utf-8'),
                                         usuario["contrasenia"].encode('utf-8')):
+            # Guardar todos los datos necesarios en usuario_actual
                 usuario_actual["id"] = usuario["id_usuario"]
                 usuario_actual["nombre"] = usuario["nombre_usuario"]
-                page.push_route("/dashboard")
+                usuario_actual["matricula"] = usuario["matricula"]
+                usuario_actual["especialidad"] = usuario["id_especialidad"]
+                usuario_actual["correo"] = usuario["correo_institucional"]
+                usuario_actual["telefono"] = usuario["celular"]
+
+                page.go("/calificaciones")
             else:
                 page.snack_bar = ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED)
                 page.snack_bar.open = True
                 page.update()
+
 
     vista_login = ft.View(
         route="/",
@@ -132,13 +137,12 @@ def main(page: ft.Page):
                         txt_usuario,
                         txt_password,
                         ft.Button("Ingresar", on_click=login_click, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
-                        ft.TextButton("¿No tienes cuenta? Regístrate aquí", on_click=lambda e: page.push_route("/registro"))
+                        ft.TextButton("¿No tienes cuenta? Regístrate aquí", on_click=lambda e: page.go("/registro"))
                     ]
                 )
             )
         ]
     )
-
 
     # Registro
     def vista_registro():
@@ -159,7 +163,7 @@ def main(page: ft.Page):
             ]
         )
 
-        async def registro_click(e):
+        def registro_click(e):
             registrar_usuario(
                 txt_usuario_reg.value,
                 txt_password_reg.value,
@@ -170,112 +174,29 @@ def main(page: ft.Page):
                 txt_celular.value,
                 dropdown_especialidad.value
             )
-            page.snack_bar = ft.SnackBar(ft.Text("Usuario registrado correctamente"), bgcolor=ft.Colors.GREEN)
-            page.snack_bar.open = True
-            await page.push_route("/")
-
+            mostrar_snackbar("Usuario registrado correctamente", ft.Colors.GREEN)
+            page.go("/")
 
         return ft.View(
             route="/registro",
             controls=[
-                ft.AppBar(title=ft.Text("Registro de Alumno"), bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
+                ft.AppBar(title=ft.Text("Registro de Alumno"), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
                 ft.Container(
                     expand=True,
                     alignment=ft.Alignment.CENTER,
-                    content=ft.Column(
+                    content = ft.Column(
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
                             txt_nombre, txt_curp, txt_matricula, txt_correo, txt_celular,
                             dropdown_especialidad, txt_usuario_reg, txt_password_reg,
                             ft.ElevatedButton("Registrar", on_click=registro_click, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
-                            ft.TextButton("¿Ya tienes cuenta? Inicia sesión aquí", on_click=lambda _: page.push_route("/"))
+                            ft.TextButton("¿Ya tienes cuenta? Inicia sesión aquí", on_click=lambda e: page.go("/"))
                         ]
                     )
                 )
             ]
         )
-
-    # Dashboard
-    def vista_dashboard():
-        dropdown_semestre = ft.Dropdown(
-            label="Selecciona el Semestre",
-            options=[ft.dropdown.Option(str(i)) for i in range(1, 7)],
-            width=200
-        )
-        lista_materias = ft.Column()
-        lbl_promedio_general = ft.Text("Promedio General del Semestre: --", size=16, weight=ft.FontWeight.BOLD)
-
-        # Función para cargar materias y calificaciones desde BD
-        def cargar_datos(e):
-            lista_materias.controls.clear()
-            semestre = dropdown_semestre.value
-            if not semestre:
-                lbl_promedio_general.value = "Selecciona un semestre"
-                page.update()
-                return
-
-            db = conectar_bd()
-            if db:
-                cursor = db.cursor(dictionary=True)
-                query = """SELECT m.nombre_materia, c.unidad1, c.unidad2, c.unidad3, c.promedio
-                            FROM materias m
-                            JOIN calificaciones c ON m.id_materia = c.id_materia
-                            WHERE m.id_usuario = %s AND m.semestre = %s"""
-                cursor.execute(query, (usuario_actual["id"], semestre))
-                resultados = cursor.fetchall()
-                cursor.close()
-                db.close()
-
-                if resultados:
-                    suma = 0
-                    for r in resultados:
-                        estado = "Aprobado ✅" if r["promedio"] >= 6 else "Reprobado ❌"
-                        lista_materias.controls.append(
-                            ft.Card(
-                                content=ft.Container(
-                                    padding=10,
-                                    content=ft.Column([
-                                        ft.Text(f"Materia: {r['nombre_materia']}", weight=ft.FontWeight.BOLD),
-                                        ft.Text(f"Unidad 1: {r['unidad1']} | Unidad 2: {r['unidad2']} | Unidad 3: {r['unidad3']}"),
-                                        ft.Text(f"Promedio: {r['promedio']:.2f} - {estado}")
-                                    ])
-                                )
-                            )
-                        )
-                        suma += r["promedio"]
-                    promedio_general = suma / len(resultados)
-                    lbl_promedio_general.value = f"Promedio General del Semestre: {promedio_general:.2f}"
-                else:
-                    lbl_promedio_general.value = "No hay materias registradas en este semestre"
-
-            page.update()
-
-        dropdown_semestre.on_change = cargar_datos
-
-        return ft.View(
-            route="/dashboard",
-            controls=[
-                ft.AppBar(title=ft.Text(f"Panel de {usuario_actual['nombre']}"),
-                            bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE,
-                            leading=ft.IconButton(ft.Icons.MENU, on_click=lambda _: setattr(nav_drawer, "open", True))),
-                ft.Container(
-                    expand=True,
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Column(
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Text("Mi Historial Académico", size=22, weight=ft.FontWeight.BOLD),
-                            dropdown_semestre,
-                            lbl_promedio_general,
-                            lista_materias
-                        ]
-                    )
-                )
-            ]
-        )
-
 
     # Calificaciones
     def vista_calificaciones(id_usuario):
@@ -288,30 +209,22 @@ def main(page: ft.Page):
         def calcular_promedio(e):
             try:
                 u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
-                if not (0 <= u1 <= 10 and 0 <= u2 <= 10 and 0 <= u3 <= 10):
-                    lbl_promedio.value = "Error: valores fuera de rango (0-10)"
-                else:
-                    promedio = (u1 + u2 + u3) / 3
-                    lbl_promedio.value = f"Promedio: {promedio:.2f}"
-            except ValueError:
-                lbl_promedio.value = "Error: ingresa solo números"
+                promedio = (u1 + u2 + u3) / 3
+                lbl_promedio.value = f"Promedio: {promedio:.2f}"
+            except:
+                lbl_promedio.value = "Error en los valores"
             page.update()
 
         def guardar_calificacion(e):
             try:
                 u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
-
                 db = conectar_bd()
                 cursor = db.cursor()
-
-                # Registrar materia y obtener ID
                 cursor.execute(
                     "INSERT INTO materias (nombre_materia, semestre, id_usuario) VALUES (%s, %s, %s)",
                     (txt_materia.value, 1, id_usuario)
                 )
                 id_materia = cursor.lastrowid
-
-            # Registrar calificaciones
                 promedio = (u1 + u2 + u3) / 3
                 cursor.execute(
                     "INSERT INTO calificaciones (id_materia, unidad1, unidad2, unidad3, promedio) VALUES (%s, %s, %s, %s, %s)",
@@ -322,35 +235,34 @@ def main(page: ft.Page):
                 cursor.close()
                 db.close()
 
-                page.snack_bar = ft.SnackBar(ft.Text("Calificación guardada correctamente"), bgcolor=ft.Colors.GREEN)
-                page.snack_bar.open = True
-                page.update()
+                mostrar_snackbar("Calificación guardada correctamente", ft.Colors.GREEN)
 
             except Exception as err:
-                page.snack_bar = ft.SnackBar(ft.Text(f"Error: {err}"), bgcolor=ft.Colors.RED)
-                page.snack_bar.open = True
+                mostrar_snackbar(f"Error: {err}", ft.Colors.RED)
                 page.update()
 
         return ft.View(
             route="/calificaciones",
             controls=[
-                ft.AppBar(
-                    title=ft.Text("Registro de Calificaciones"),
-                    bgcolor=ft.Colors.ORANGE,
-                    color=ft.Colors.WHITE,
-                    leading=ft.IconButton(ft.Icons.MENU, on_click=lambda _: setattr(nav_drawer, "open", True))
+                ft.AppBar(title=ft.Text("Registro de Calificaciones"), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
+                ft.Container(
+                    expand=True,
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Column(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            txt_materia,
+                            ft.Row([txt_u1, txt_u2, txt_u3]),
+                            lbl_promedio,
+                            ft.Row([
+                                ft.Button("Calcular Promedio", on_click=calcular_promedio, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
+                                ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
+                            ])
+                        ]
+                    )
                 ),
-                ft.Column(
-                    controls=[
-                        txt_materia,
-                        ft.Row([txt_u1, txt_u2, txt_u3]),
-                        lbl_promedio,
-                        ft.Row([
-                            ft.Button("Calcular Promedio", on_click=calcular_promedio, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
-                        ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
-                        ])
-                    ]
-                )
+                nav_bar
             ]
         )
 
@@ -365,10 +277,14 @@ def main(page: ft.Page):
             db = conectar_bd()
             if db:
                 cursor = db.cursor(dictionary=True)
-                query = """SELECT semestre, promedio_semestre
-                            FROM historial
-                            WHERE id_usuario = %s
-                            ORDER BY semestre"""
+                # Traer materias y calificaciones por semestre
+                query = """
+                    SELECT m.semestre, m.nombre_materia, c.promedio
+                    FROM materias m
+                    JOIN calificaciones c ON m.id_materia = c.id_materia
+                    WHERE m.id_usuario = %s
+                    ORDER BY m.semestre
+                """
                 cursor.execute(query, (id_usuario,))
                 resultados = cursor.fetchall()
                 cursor.close()
@@ -376,68 +292,101 @@ def main(page: ft.Page):
 
                 if resultados:
                     suma = 0
+                    count = 0
+                    semestre_actual = None
+                    bloque_semestre = ft.Column()
+
                     for r in resultados:
-                        lista_historial.controls.append(
-                            ft.Card(
-                                content=ft.Container(
-                                    padding=10,
-                                    content=ft.Column([
-                                        ft.Text(f"Semestre {r['semestre']}", weight=ft.FontWeight.BOLD),
-                                        ft.Text(f"Promedio: {r['promedio_semestre']:.2f}")
-                                    ])
+                        # Si cambia el semestre, agregamos un bloque nuevo
+                        if semestre_actual != r["semestre"]:
+                            if semestre_actual is not None:
+                                lista_historial.controls.append(
+                                    ft.Card(
+                                        content=ft.Container(
+                                            padding=10,
+                                            content=ft.Column([
+                                                ft.Text(f"Semestre {semestre_actual}", weight=ft.FontWeight.BOLD),
+                                                bloque_semestre
+                                            ])
+                                        )
+                                    )
                                 )
+                            semestre_actual = r["semestre"]
+                            bloque_semestre = ft.Column()
+
+                        bloque_semestre.controls.append(
+                            ft.Text(f"{r['nombre_materia']}: {r['promedio']:.2f}")
+                        )
+                        suma += r["promedio"]
+                        count += 1
+
+                    # Último semestre
+                    lista_historial.controls.append(
+                        ft.Card(
+                            content=ft.Container(
+                                padding=10,
+                                content=ft.Column([
+                                    ft.Text(f"Semestre {semestre_actual}", weight=ft.FontWeight.BOLD),
+                                    bloque_semestre
+                                ])
                             )
                         )
-                        suma += r["promedio_semestre"]
-                    promedio_general = suma / len(resultados)
+                    )
+
+                    promedio_general = suma / count
                     lbl_promedio_general.value = f"Promedio General Acumulado: {promedio_general:.2f}"
                 else:
-                    lbl_promedio_general.value = "No hay historial registrado"
+                    lbl_promedio_general.value = "No hay calificaciones registradas"
 
             page.update()
 
-        # Cargar historial al entrar a la vista
         cargar_historial()
 
         return ft.View(
             route="/historial",
             controls=[
-                ft.AppBar(title=ft.Text("Historial Académico"),
-                            bgcolor=ft.Colors.PURPLE, color=ft.Colors.WHITE,
-                            leading=ft.IconButton(ft.Icons.MENU, on_click=lambda _: setattr(nav_drawer, "open", True))),
-                ft.Column(
-                    controls=[
-                        lbl_promedio_general,
-                        lista_historial
-                    ]
-                )
-            ]
-        )
+                ft.AppBar(title=ft.Text("Historial Académico"), bgcolor=ft.Colors.PURPLE, color=ft.Colors.WHITE),
+                ft.Container(
+                    expand=True,
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Column(
+                        alignment=ft.MainAxisAlignment.START,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            lbl_promedio_general,
+                            lista_historial
+                        ]
+                    )
+                ),
+            nav_bar
+        ]
+    )
+
 
     # Vista Perfil del Alumno
     def vista_perfil(usuario_actual):
         return ft.View(
             route="/perfil",
             controls=[
-                ft.AppBar(
-                    title=ft.Text("Perfil del Alumno"),
-                    bgcolor=ft.Colors.BLUE_700,
-                    color=ft.Colors.WHITE,
-                    leading=ft.IconButton(ft.Icons.MENU, on_click=lambda _: setattr(nav_drawer, "open", True))
+                ft.AppBar(title=ft.Text("Perfil del Alumno"), bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                ft.Container(
+                    expand=True,
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Column(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(f"Nombre: {usuario_actual.get('nombre', '--')}", size=18, weight=ft.FontWeight.BOLD),
+                            ft.Text(f"Matrícula: {usuario_actual.get('matricula', '--')}"),
+                            ft.Text(f"Especialidad: {usuario_actual.get('especialidad', '--')}"),
+                            ft.Text(f"Correo: {usuario_actual.get('correo', '--')}"),
+                            ft.Text(f"Teléfono: {usuario_actual.get('telefono', '--')}"),
+                        ]
+                    )
                 ),
-                ft.Column(
-                    controls=[
-                        ft.CircleAvatar(radius=40, foreground_image_url="https://via.placeholder.com/150"),
-                        ft.Text(f"Nombre: {usuario_actual['nombre']}", size=18, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"Matrícula: {usuario_actual['Matrícula']}"),
-                        ft.Text(f"Especialidad: {usuario_actual['Especialidad']}"),
-                        ft.Text(f"Correo: {usuario_actual['correo']}"),
-                        ft.Text(f"Teléfono: {usuario_actual['celular']}"),
-                    ]
-                )
+                nav_bar
             ]
         )
-
 
 
     # --- NAVEGACIÓN ENTRE VISTAS ---
@@ -447,8 +396,6 @@ def main(page: ft.Page):
             page.views.append(vista_login)
         elif page.route == "/registro":
             page.views.append(vista_registro())
-        elif page.route == "/dashboard":
-            page.views.append(vista_dashboard())
         elif page.route == "/calificaciones":
             page.views.append(vista_calificaciones(usuario_actual["id"] or 0))
         elif page.route == "/perfil":
@@ -460,6 +407,5 @@ def main(page: ft.Page):
 
     page.on_route_change = route_change
     route_change(None)
-
 
 ft.run(main)
