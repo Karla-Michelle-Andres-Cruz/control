@@ -66,8 +66,7 @@ def main(page: ft.Page):
     usuario_actual = {"id": None, "nombre": ""}
 
     def mostrar_snackbar(mensaje, color=ft.Colors.BLUE):
-        page.snack_bar = ft.SnackBar(ft.Text(mensaje), bgcolor=color)
-        page.snack_bar.open = True
+        page.show_dialog( ft.SnackBar(ft.Text(mensaje), bgcolor=color))
         page.update()
 
     # --- Barra de navegación inferior ---
@@ -117,8 +116,7 @@ def main(page: ft.Page):
 
                 page.go("/calificaciones")
             else:
-                page.snack_bar = ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED)
-                page.snack_bar.open = True
+                page.show_dialog(ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED))
                 page.update()
 
 
@@ -164,6 +162,22 @@ def main(page: ft.Page):
         )
 
         def registro_click(e):
+    # Validar que todos los campos estén llenos
+            if not all([
+                txt_usuario_reg.value,
+                txt_password_reg.value,
+                txt_nombre.value,
+                txt_curp.value,
+                txt_matricula.value,
+                txt_correo.value,
+                txt_celular.value,
+                dropdown_especialidad.value
+            ]):
+                mostrar_snackbar("Por favor llena todos los campos antes de continuar", ft.Colors.RED)
+                page.update()
+                return
+
+    # Si todo está lleno, registrar
             registrar_usuario(
                 txt_usuario_reg.value,
                 txt_password_reg.value,
@@ -176,6 +190,7 @@ def main(page: ft.Page):
             )
             mostrar_snackbar("Usuario registrado correctamente", ft.Colors.GREEN)
             page.go("/")
+
 
         return ft.View(
             route="/registro",
