@@ -205,6 +205,11 @@ def main(page: ft.Page):
         txt_u2 = ft.TextField(label="Unidad 2", width=100)
         txt_u3 = ft.TextField(label="Unidad 3", width=100)
         lbl_promedio = ft.Text("Promedio: --", size=16, weight=ft.FontWeight.BOLD)
+        dropdown_semestre = ft.Dropdown(
+            label="Semestre",
+            options=[ft.dropdown.Option(str(i)) for i in range(1, 7)],
+            width=200
+        )
 
         def calcular_promedio(e):
             try:
@@ -218,11 +223,12 @@ def main(page: ft.Page):
         def guardar_calificacion(e):
             try:
                 u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
+                semestre = int(dropdown_semestre.value) if dropdown_semestre.value else 1
                 db = conectar_bd()
                 cursor = db.cursor()
                 cursor.execute(
                     "INSERT INTO materias (nombre_materia, semestre, id_usuario) VALUES (%s, %s, %s)",
-                    (txt_materia.value, 1, id_usuario)
+                    (txt_materia.value, semestre, id_usuario)
                 )
                 id_materia = cursor.lastrowid
                 promedio = (u1 + u2 + u3) / 3
@@ -253,6 +259,7 @@ def main(page: ft.Page):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
                             txt_materia,
+                            dropdown_semestre,
                             ft.Row([txt_u1, txt_u2, txt_u3]),
                             lbl_promedio,
                             ft.Row([
@@ -358,9 +365,9 @@ def main(page: ft.Page):
                         ]
                     )
                 ),
-            nav_bar
-        ]
-    )
+                nav_bar
+            ]
+        )
 
 
     # Vista Perfil del Alumno
