@@ -1,6 +1,7 @@
 import flet as ft
 import mysql.connector
 import bcrypt
+import re
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS ---
 def conectar_bd():
@@ -66,20 +67,21 @@ def main(page: ft.Page):
     usuario_actual = {"id": None, "nombre": ""}
 
     def mostrar_snackbar(mensaje, color=ft.Colors.BLUE):
-        page.snack_bar = ft.SnackBar(ft.Text(mensaje), bgcolor=color)
-        page.snack_bar.open = True
+        page.show_dialog(ft.SnackBar(ft.Text(mensaje), bgcolor=color))
         page.update()
 
     # --- Barra de navegación inferior ---
     nav_bar = ft.NavigationBar(
         destinations=[
+            ft.NavigationBarDestination(icon=ft.Icons.BOOK, label="Materias"),
             ft.NavigationBarDestination(icon=ft.Icons.SCHOOL, label="Calificaciones"),
             ft.NavigationBarDestination(icon=ft.Icons.PERSON, label="Perfil"),
             ft.NavigationBarDestination(icon=ft.Icons.HISTORY, label="Historial"),
         ],
         on_change=lambda e: page.go(
-            "/calificaciones" if e.control.selected_index == 0 else
-            "/perfil" if e.control.selected_index == 1 else
+            "/dashboard" if e.control.selected_index == 0 else
+            "/calificaciones" if e.control.selected_index == 1 else
+            "/perfil" if e.control.selected_index == 2 else
             "/historial"
         )
     )
@@ -115,10 +117,9 @@ def main(page: ft.Page):
                 usuario_actual["correo"] = usuario["correo_institucional"]
                 usuario_actual["telefono"] = usuario["celular"]
 
-                page.go("/calificaciones")
+                page.go("/dashboard")
             else:
-                page.snack_bar = ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED)
-                page.snack_bar.open = True
+                page.show_dialog(ft.SnackBar(ft.Text("Usuario o contraseña incorrectos"), bgcolor=ft.Colors.RED))
                 page.update()
 
 
@@ -164,17 +165,89 @@ def main(page: ft.Page):
         )
 
         def registro_click(e):
+            valido = True
+            mensaje_error = ""
+
+    # Validar nombre
+            if not txt_nombre.value.strip():
+                txt_nombre.error_text = "Nombre obligatorio"
+                mensaje_error = "El nombre es obligatorio"
+                valido = False
+            else:
+                txt_nombre.error_text = None
+
+    # Validar CURP
+            curp_regex = r"^[A-Z0-9]{18}$"
+            if not re.match(curp_regex, txt_curp.value.upper()):
+                txt_curp.error_text = "CURP inválida"
+                mensaje_error = "La CURP debe tener 18 caracteres en formato oficial"
+                valido = False
+            else:
+                txt_curp.error_text = None
+
+    # Validar matrícula
+            if not txt_matricula.value.isdigit() or len(txt_matricula.value) < 14:
+                txt_matricula.error_text = "Matrícula inválida"
+                mensaje_error = "La matrícula debe tener al menos 14 números"
+                valido = False
+            else:
+                txt_matricula.error_text = None
+
+    # Validar correo
+            correo_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+            if not re.match(correo_regex, txt_correo.value):
+                txt_correo.error_text = "Correo inválido"
+                mensaje_error = "El correo debe tener formato usuario@dominio.com"
+                valido = False
+            else:
+                txt_correo.error_text = None
+
+    # Validar teléfono
+            if not txt_celular.value.isdigit() or len(txt_celular.value) >= 10:
+                txt_celular.error_text = "Teléfono inválido"
+                mensaje_error = "El teléfono debe tener al menos 10 números"
+                valido = False
+            else:
+                txt_celular.error_text = None
+
+    # Validar usuario
+            if not txt_usuario_reg.value.strip():
+                txt_usuario_reg.error_text = "Usuario obligatorio"
+                mensaje_error = "El usuario es obligatorio"
+                valido = False
+            else:
+                txt_usuario_reg.error_text = None
+
+    # Validar contraseña
+            if not txt_password_reg.value.strip():
+                txt_password_reg.error_text = "Contraseña obligatoria"
+                mensaje_error = "La contraseña es obligatoria"
+                valido = False
+            else:
+                txt_password_reg.error_text = None
+
+            page.update()
+
+            if not valido:
+        # Mostrar SnackBar con el mensaje de error general
+                page.show_dialog(ft.SnackBar(ft.Text(mensaje_error), bgcolor=ft.Colors.RED))
+                page.update()
+                return
+
+    # Si todo es válido, registrar
             registrar_usuario(
                 txt_usuario_reg.value,
                 txt_password_reg.value,
                 txt_nombre.value,
-                txt_curp.value,
+                txt_curp.value.upper(),
                 txt_matricula.value,
                 txt_correo.value,
                 txt_celular.value,
                 dropdown_especialidad.value
             )
-            mostrar_snackbar("Usuario registrado correctamente", ft.Colors.GREEN)
+            page.snack_bar = ft.SnackBar(ft.Text("Usuario registrado correctamente"), bgcolor=ft.Colors.GREEN)
+            page.snack_bar.open = True
+            page.update()
             page.go("/")
 
         return ft.View(
@@ -184,68 +257,118 @@ def main(page: ft.Page):
                 ft.Container(
                     expand=True,
                     alignment=ft.Alignment.CENTER,
-                    content = ft.Column(
+                    content=ft.Column(
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
                             txt_nombre, txt_curp, txt_matricula, txt_correo, txt_celular,
                             dropdown_especialidad, txt_usuario_reg, txt_password_reg,
                             ft.ElevatedButton("Registrar", on_click=registro_click, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
-                            ft.TextButton("¿Ya tienes cuenta? Inicia sesión aquí", on_click=lambda e: page.go("/"))
+                            ft.TextButton("¿Ya tienes cuenta? Inicia sesión aquí", on_click=lambda e: page.go("/")),
                         ]
                     )
                 )
             ]
         )
 
-    # Calificaciones
-    def vista_calificaciones(id_usuario):
+    def vista_dashboard(id_usuario):
         txt_materia = ft.TextField(label="Nombre de la Materia", width=300)
-        txt_u1 = ft.TextField(label="Unidad 1", width=100)
-        txt_u2 = ft.TextField(label="Unidad 2", width=100)
-        txt_u3 = ft.TextField(label="Unidad 3", width=100)
-        lbl_promedio = ft.Text("Promedio: --", size=16, weight=ft.FontWeight.BOLD)
         dropdown_semestre = ft.Dropdown(
             label="Semestre",
             options=[ft.dropdown.Option(str(i)) for i in range(1, 7)],
             width=200
         )
+        lbl_mensaje = ft.Text("", size=16)
 
-        def calcular_promedio(e):
-            try:
-                u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
-                promedio = (u1 + u2 + u3) / 3
-                lbl_promedio.value = f"Promedio: {promedio:.2f}"
-            except:
-                lbl_promedio.value = "Error en los valores"
-            page.update()
+        def guardar_materia(e):
+            if not txt_materia.value.strip() or not dropdown_semestre.value:
+                mostrar_snackbar("❌ Debes ingresar nombre y semestre", ft.Colors.RED)
+                return
 
-        def guardar_calificacion(e):
-            try:
-                u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
-                semestre = int(dropdown_semestre.value) if dropdown_semestre.value else 1
-                db = conectar_bd()
-                cursor = db.cursor()
-                cursor.execute(
-                    "INSERT INTO materias (nombre_materia, semestre, id_usuario) VALUES (%s, %s, %s)",
-                    (txt_materia.value, semestre, id_usuario)
-                )
-                id_materia = cursor.lastrowid
-                promedio = (u1 + u2 + u3) / 3
-                cursor.execute(
-                    "INSERT INTO calificaciones (id_materia, unidad1, unidad2, unidad3, promedio) VALUES (%s, %s, %s, %s, %s)",
-                    (id_materia, u1, u2, u3, promedio)
-                )
+            registrar_materia(txt_materia.value, int(dropdown_semestre.value), usuario_actual["id"])
+            mostrar_snackbar("✅ Materia registrada correctamente", ft.Colors.GREEN)
 
-                db.commit()
+
+        return ft.View(
+            route="/dashboard",
+            controls=[
+                ft.AppBar(title=ft.Text("Dashboard"), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
+                ft.Container(
+                    expand=True,
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Column(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text("Alta de Materias", size=20, weight=ft.FontWeight.BOLD),
+                            txt_materia,
+                            dropdown_semestre,
+                            ft.ElevatedButton("Guardar Materia", on_click=guardar_materia, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
+                            lbl_mensaje
+                        ]
+                    )
+                ),
+                nav_bar
+            ]
+        )
+
+
+    # Calificaciones
+    def vista_calificaciones(id_usuario):
+        dropdown_materia = ft.Dropdown(label="Materia", width=300)
+        txt_u1 = ft.TextField(label="Unidad 1", width=100)
+        txt_u2 = ft.TextField(label="Unidad 2", width=100)
+        txt_u3 = ft.TextField(label="Unidad 3", width=100)
+        lbl_promedio = ft.Text("Promedio: --", size=16, weight=ft.FontWeight.BOLD)
+
+    # Cargar materias desde BD
+        def cargar_materias():
+            db = conectar_bd()
+            if db:
+                cursor = db.cursor(dictionary=True)
+                cursor.execute("SELECT id_materia, nombre_materia FROM materias WHERE id_usuario = %s", (id_usuario,))
+                resultados = cursor.fetchall()
                 cursor.close()
                 db.close()
 
-                mostrar_snackbar("Calificación guardada correctamente", ft.Colors.GREEN)
+                dropdown_materia.options = [ft.dropdown.Option(str(r["id_materia"]), r["nombre_materia"]) for r in resultados]
+            page.update()
 
+        cargar_materias()
+
+        def calcular_promedio(e):
+            try:
+                valores = []
+                if txt_u1.value.strip():
+                    valores.append(float(txt_u1.value))
+                if txt_u2.value.strip():
+                    valores.append(float(txt_u2.value))
+                if txt_u3.value.strip():
+                    valores.append(float(txt_u3.value))
+
+                if len(valores) == 0:
+                    lbl_promedio.value = "❌ Ingresa al menos una calificación"
+                else:
+                    promedio = sum(valores) / len(valores)
+                    if len(valores) == 1:
+                        lbl_promedio.value = f"Unidad 1: {valores[0]:.2f}"
+                    elif len(valores) == 2:
+                        lbl_promedio.value = f"Promedio U1-U2: {promedio:.2f}"
+                    else:
+                        lbl_promedio.value = f"Promedio U1-U3: {promedio:.2f}"
+            except:
+                lbl_promedio.value = "❌ Error en los valores"
+            page.update()
+
+
+        def guardar_calificacion(e):
+            try:
+                id_materia = int(dropdown_materia.value)
+                u1, u2, u3 = float(txt_u1.value), float(txt_u2.value), float(txt_u3.value)
+                registrar_calificaciones(id_materia, u1, u2, u3)
+                mostrar_snackbar("✅ Calificación guardada correctamente", ft.Colors.GREEN)
             except Exception as err:
-                mostrar_snackbar(f"Error: {err}", ft.Colors.RED)
-                page.update()
+                mostrar_snackbar(f"❌ Error: {err}", ft.Colors.RED)
 
         return ft.View(
             route="/calificaciones",
@@ -258,13 +381,12 @@ def main(page: ft.Page):
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
-                            txt_materia,
-                            dropdown_semestre,
+                            dropdown_materia,
                             ft.Row([txt_u1, txt_u2, txt_u3]),
                             lbl_promedio,
                             ft.Row([
                                 ft.Button("Calcular Promedio", on_click=calcular_promedio, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
-                                ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
+                            ft.Button("Guardar", on_click=guardar_calificacion, bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
                             ])
                         ]
                     )
@@ -272,6 +394,7 @@ def main(page: ft.Page):
                 nav_bar
             ]
         )
+
 
 
     # Vista Historial Académico Completo
@@ -409,6 +532,8 @@ def main(page: ft.Page):
             page.views.append(vista_perfil(usuario_actual))
         elif page.route == "/historial":
             page.views.append(vista_historial(usuario_actual["id"]))
+        elif page.route == "/dashboard":
+            page.views.append(vista_dashboard(usuario_actual))
 
         page.update()
 
